@@ -23,7 +23,7 @@ def start(bot, update):
     update.message.reply_text('Inserisci la tua fermata')
     res = s2.paline.Previsioni(token, "70101", 'it')
     update.message.reply_text(res['id_richiesta'])
-    update.message.reply_text("Prova: " + BOT_API)
+    update.message.reply_text("Prova: " + os.environ['BOT_API'])
 
 def echo(bot, update):
      bot.sendMessage(chat_id=update.message.chat_id, text=update.message.text)
