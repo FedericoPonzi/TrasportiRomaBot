@@ -51,7 +51,7 @@ def error(bot, update, error):
 
 
 def main():
-
+    logger.warn("Qualcosa è andata storta.")
     # Create the Updater and pass it your bot's token.
     updater = Updater(os.environ['TELEGRAM_API_KEY'])
 
