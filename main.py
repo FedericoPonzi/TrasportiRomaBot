@@ -15,6 +15,10 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 logger = logging.getLogger(__name__)
 
+s1 = Server('http://muovi.roma.it/ws/xml/autenticazione/1')
+token = s1.autenticazione.Accedi(os.environ['ATAC_API_KEY'], '')
+logger.info("Login token: "+ token)
+s2 = Server('http://muovi.roma.it/ws/xml/paline/7')
 
 # Define a few command handlers. These usually take the two arguments bot and
 # update. Error handlers also receive the raised TelegramError object in error.
@@ -22,7 +26,9 @@ def start(bot, update):
     bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
     update.message.reply_text('Inserisci la tua fermata')
     res = s2.paline.Previsioni(token, "70101", 'it')
+    update.message.reply_text(os.environ['ATAC_API_KEY'])
     update.message.reply_text(res['id_richiesta'])
+
 
 def echo(bot, update):
      bot.sendMessage(chat_id=update.message.chat_id, text=update.message.text)
@@ -42,10 +48,6 @@ I comandi supportati sono:
 
 def error(bot, update, error):
     logger.warn('Update "%s" caused error "%s"' % (update, error))
-
-s1 = Server('http://muovi.roma.it/ws/xml/autenticazione/1')
-token = s1.autenticazione.Accedi(os.environ['ATAC_API_KEY'], '')
-s2 = Server('http://muovi.roma.it/ws/xml/paline/7')
 
 
 def main():
