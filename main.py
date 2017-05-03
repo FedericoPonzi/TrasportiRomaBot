@@ -27,7 +27,7 @@ def start(bot, update):
     update.message.reply_text('Inserisci la tua fermata')
     res = s2.paline.Previsioni(token, "70101", 'it')
     update.message.reply_text(os.environ['ATAC_API_KEY'])
-    update.message.reply_text(res['id_richiesta'])
+    #update.message.reply_text(res['id_richiesta'])
 
 
 def echo(bot, update):
