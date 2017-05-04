@@ -23,18 +23,24 @@ class Emoji(object):
 class Atac(object):
     def __init__(self, api_key):
         self.emoji = Emoji()
-        s1 = Server('http://muovi.roma.it/ws/xml/autenticazione/1')
-        self.token = s1.autenticazione.Accedi(os.environ['ATAC_API_KEY'], '')
+        auth_server = Server('http://muovi.roma.it/ws/xml/autenticazione/1')
+        self.token = auth_server.autenticazione.Accedi(os.environ['ATAC_API_KEY'], '')
         self.paline_server = Server('http://muovi.roma.it/ws/xml/paline/7')
-    def get_autobus_from_fermata(self, id):
-        res = self.paline_server.paline.Previsioni(self.token, "70101", 'it')
+        self.percorso_server = Server('http://muovi.roma.it/ws/xml/percorso/2')
+
+    def get_percorso(self, fr, to):
+        res = self.percorso_server.percorso.Cerca(self.token, fr, to )
+        print("REs: " + res)
+        return res
+
+    def get_autobus_from_fermata(self, id_palina):
+        res = self.paline_server.paline.Previsioni(self.token, id_palina, 'it')
         m = res['risposta']['collocazione'] + "\n"
         inArrivo = res['risposta']['arrivi']
         for i in inArrivo:
             m += self.emoji.autobus + " "
             m += i['linea'] + " - "
             m += i['annuncio'].replace("'", " minuti")
-
             m += "\n"
         return m
 
@@ -44,10 +50,7 @@ atac = Atac(os.environ['ATAC_API_KEY'])
 # update. Error handlers also receive the raised TelegramError object in error.
 def start(bot, update):
     logger.info("Called start command")
-    bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
-    #update.message.reply_text('Inserisci la tua fermata')
-    response = atac.get_autobus_from_fermata("70101")
-    update.message.reply_text(response)
+
 
 def echo(bot, update):
      bot.sendMessage(chat_id=update.message.chat_id, text=update.message.text)
@@ -61,9 +64,14 @@ def location(bot, update):
 
 
 
-def fermataCH(bot, update):
-    logger.info("Called start command")
-    update.message.reply_text("Work in progress. Presto potrai avere la lista di autobus in arrivo alla tua fermata.")
+def fermataCH(bot, update, args):
+    logger.info("Called start command - args:" + str(args))
+    stopNum = int(args[0])
+    logger.info(stopNum)
+    bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
+    #update.message.reply_text('Inserisci la tua fermata')
+    response = atac.get_autobus_from_fermata(str(stopNum))
+    update.message.reply_text(response)
 
 def help(bot, update):
     bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
@@ -88,7 +96,7 @@ def main():
     dp.add_handler(MessageHandler(Filters.text, echo))
     dp.add_handler(CommandHandler("start", start))
     dp.add_handler(CommandHandler("help", help))
-    dp.add_handler(CommandHandler("fermata", fermataCH))
+    dp.add_handler(CommandHandler("fermata", fermataCH, pass_args=True))
     dp.add_handler(CommandHandler("location", location))
 
     # log all errors
@@ -97,6 +105,10 @@ def main():
     # Start the Bot
     updater.start_polling()
     logger.info("Going idle..")
+
+    atac.get_percorso("Via ardeatina 1696", "Roma Termini")
+
+
     # Block until the user presses Ctrl-C or the process receives SIGINT,
     # SIGTERM or SIGABRT. This should be used most of the time, since
     # start_polling() is non-blocking and will stop the bot gracefully.
