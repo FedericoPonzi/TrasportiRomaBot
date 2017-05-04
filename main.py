@@ -8,6 +8,7 @@ from telegram.ext import Updater, InlineQueryHandler, CommandHandler, MessageHan
 import logging
 import time
 from time import gmtime, strftime
+from telegram.ext.dispatcher import run_async
 
 from xmlrpc.client import Server
 
@@ -68,11 +69,15 @@ def location(bot, update):
     reply_markup = ReplyKeyboardMarkup(button_list)
     bot.send_message(chat_id=update.message.chat_id, text="A two-column menu", reply_markup=reply_markup)
 
-# Commands :
+######
+###Commands :
+######
+@run_async
 def start_ch(bot, update):
     logger.info("Called /start command")
     update.message.reply_text("Ciao! Posso dirti la posizione degli autobus in arrivo e molto altro.\nUsa /help per una lista di comandi!")
 
+@run_async
 def fermata_ch(bot, update, args):
     logger.info("Called /fermata command")
     stopNum = int(args[0])
@@ -82,27 +87,31 @@ def fermata_ch(bot, update, args):
     response = atac.get_autobus_from_fermata(str(stopNum))
     update.message.reply_text(response)
 
+@run_async
 def autobus_ch(bot, update):
     logger.info("Called /autobus command")
     update.message.reply_text("Work in progress. In futuro ti darò informazioni sulle posizioni degli autobus.")
 
+@run_async
 def help_ch(bot, update):
     logger.info("Called /help command")
     bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
     update.message.reply_text('''
-TrasportiRomaBot ti darà informazioni sugli autobus a Roma!
-I comandi supportati sono:
-/start per iniziare il bot
-/fermata per sapere quali autobus sono in arrivo
-/autobus per sapere dove si trova un autobus
+        TrasportiRomaBot ti darà informazioni sugli autobus a Roma!
+        I comandi supportati sono:
+        /start per iniziare il bot
+        /fermata per sapere quali autobus sono in arrivo
+        /autobus per sapere dove si trova un autobus
     ''')
 
+@run_async
 def error(bot, update, error):
     logger.warn('Update "%s" caused error "%s"' % (update, error))
+    #TODO: Handle this.
 
 def main():
     # Create the Updater and pass it your bot's token.
-    updater = Updater(os.environ['TELEGRAM_API_KEY'])
+    updater = Updater(os.environ['TELEGRAM_API_KEY'], workers=32)
 
     # Get the dispatcher to register handlers
     dp = updater.dispatcher
