@@ -69,14 +69,19 @@ states = {}
 
 @run_async
 def echo(bot, update):
-     if update['message']['chat']['id'] in states and states[update['message']['chat']['id']] == State.FERMATA :
+     if update['message']['chat']['id'] in states:
+         states[update['message']['chat']['id']] == State.FERMATA :
          fermata_ch(bot, update, [update.message.text])
+         del states[update['message']['chat']['id']]
      else:
          bot.sendMessage(chat_id=update.message.chat_id, text=update.message.text)
 
 @run_async
 def callback_query_handler(bot, update):
     logger.info("Called callback_query_handler")
+    if update['message']['chat']['id'] in states:
+        del states[update['message']['chat']['id']]
+
     query = update.callback_query
     keyboard = [[InlineKeyboardButton("Aggiorna", callback_data=query.data)]]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -89,13 +94,18 @@ def callback_query_handler(bot, update):
 
 @run_async
 def start_ch(bot, update):
+    if update['message']['chat']['id'] in states:
+        del states[update['message']['chat']['id']]
     bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
     logger.info("Called /start command")
     update.message.reply_text("Ciao! Posso dirti la posizione degli autobus in arrivo e molto altro.\nUsa /help per una lista di comandi!")
 
 @run_async
 def fermata_ch(bot, update, args):
+    bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
     logger.info("Called /fermata command")
+    if update['message']['chat']['id'] in states:
+        del states[update['message']['chat']['id']]
     if len(args) > 0:
         stopNum = int(args[0])
         print("stopnum setted.")
@@ -105,22 +115,23 @@ def fermata_ch(bot, update, args):
         #update.message.reply_text("Dovresti inserire anche un numero di fermata, tipo /fermata 70101")
         return
 
-    bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
     #update.message.reply_text('Inserisci la tua fermata')
     keyboard = [[InlineKeyboardButton("Aggiorna", callback_data=str(stopNum))]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     update.message.reply_text(atac.get_autobus_from_fermata(stopNum), reply_markup=reply_markup)
 
-
-
 @run_async
 def autobus_ch(bot, update):
+    if update['message']['chat']['id'] in states:
+        del states[update['message']['chat']['id']]
     logger.info("Called /autobus command")
     bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
     update.message.reply_text("Work in progress. In futuro ti darò informazioni sulle posizioni degli autobus.")
 
 @run_async
 def help_ch(bot, update):
+    if update['message']['chat']['id'] in states:
+        del states[update['message']['chat']['id']]
     logger.info("Called /help command")
     bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
     update.message.reply_text('''
