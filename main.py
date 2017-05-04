@@ -5,7 +5,8 @@ from telegram import InlineQueryResultArticle, ParseMode, \
     InputTextMessageContent, ChatAction, ReplyKeyboardMarkup
 import telegram
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Updater, InlineQueryHandler, CommandHandler, MessageHandler, Filters, CallbackQueryHandler
+from telegram.ext import Updater, InlineQueryHandler, CommandHandler, MessageHandler, Filters,\
+ CallbackQueryHandler, ConversationHandler
 import logging
 import time
 from telegram.ext.dispatcher import run_async
@@ -23,6 +24,8 @@ class Emoji(object):
     def __init__(self):
         self.autobus = "🚌"
 
+class State(object):
+    FERMATA = 0
 
 class Atac(object):
     def __init__(self, api_key):
@@ -54,12 +57,11 @@ class Atac(object):
             m += "\n"
         return m
 
+
+## Statics (for now):
+
 atac = Atac(os.environ['ATAC_API_KEY'])
-
-# Define a few command handlers. These usually take the two arguments bot and
-# update. Error handlers also receive the raised TelegramError object in error.
-
-
+states = {}
 
 ######
 ###Commands :
@@ -67,7 +69,10 @@ atac = Atac(os.environ['ATAC_API_KEY'])
 
 @run_async
 def echo(bot, update):
-     bot.sendMessage(chat_id=update.message.chat_id, text=update.message.text)
+     if update['message']['chat']['id'] in states and states[update['message']['chat']['id']] == State.FERMATA :
+         fermata_ch(bot, update, [update.message.text])
+     else:
+         bot.sendMessage(chat_id=update.message.chat_id, text=update.message.text)
 
 @run_async
 def callback_query_handler(bot, update):
@@ -75,7 +80,7 @@ def callback_query_handler(bot, update):
     query = update.callback_query
     keyboard = [[InlineKeyboardButton("Aggiorna", callback_data=query.data)]]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    m = "\nAggiornate alle ore: " + str(datetime.now())
+    m = "\nAggiornate alle " + str(datetime.now().strftime("%X"))
     bot.editMessageText(text=atac.get_autobus_from_fermata(query.data) + m,
                         chat_id=query.message.chat_id,
                         message_id=query.message.message_id,
@@ -93,13 +98,20 @@ def fermata_ch(bot, update, args):
     logger.info("Called /fermata command")
     if len(args) > 0:
         stopNum = int(args[0])
+        print("stopnum setted.")
     else:
-        update.message.reply_text("Dovresti inserire anche un numero di fermata, tipo /fermata 70101")
+        update.message.reply_text("Qual'è il numero della fermata in cui ti trovi?")
+        states[update['message']['chat']['id']] = State.FERMATA
+        #update.message.reply_text("Dovresti inserire anche un numero di fermata, tipo /fermata 70101")
+        return
+
     bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
     #update.message.reply_text('Inserisci la tua fermata')
     keyboard = [[InlineKeyboardButton("Aggiorna", callback_data=str(stopNum))]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     update.message.reply_text(atac.get_autobus_from_fermata(stopNum), reply_markup=reply_markup)
+
+
 
 @run_async
 def autobus_ch(bot, update):
@@ -125,32 +137,29 @@ def error(bot, update, error):
     #TODO: Handle this.
 
 def main():
-    # Create the Updater and pass it your bot's token.
     updater = Updater(os.environ['TELEGRAM_API_KEY'], workers=32)
-
     # Get the dispatcher to register handlers
     dp = updater.dispatcher
 
-    dp.add_handler(MessageHandler(Filters.text, echo))
-    dp.add_handler(CallbackQueryHandler(callback_query_handler))
-    dp.add_handler(CommandHandler("start", start_ch))
-    dp.add_handler(CommandHandler("help", help_ch))
-    dp.add_handler(CommandHandler("fermata", fermata_ch, pass_args=True, allow_edited=True))
-    #dp.add_handler(CommandHandler("location", location))
-    dp.add_handler(CommandHandler("autobus", autobus_ch))
+    handlers = [
+        MessageHandler(Filters.text, echo),
+        CallbackQueryHandler(callback_query_handler),
+        CommandHandler("start", start_ch),
+        CommandHandler("help", help_ch),
+        CommandHandler("fermata", fermata_ch, pass_args=True, allow_edited=True),
+        CommandHandler("autobus", autobus_ch)
+    ]
+    for i in handlers:
+        dp.add_handler(i)
+    #map(lambda x : dp.add_handler(x), handlers)
 
     # log all errors
     dp.add_error_handler(error)
 
     # Start the Bot
-    updater.start_polling()
     logger.info("Going idle..")
-
-    # Block until the user presses Ctrl-C or the process receives SIGINT,
-    # SIGTERM or SIGABRT. This should be used most of the time, since
-    # start_polling() is non-blocking and will stop the bot gracefully.
+    updater.start_polling()
     updater.idle()
-
 
 if __name__ == '__main__':
     main()
