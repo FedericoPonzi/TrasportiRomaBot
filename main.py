@@ -4,12 +4,12 @@ import re
 from telegram import InlineQueryResultArticle, ParseMode, \
     InputTextMessageContent, ChatAction, ReplyKeyboardMarkup
 import telegram
-from telegram.ext import Updater, InlineQueryHandler, CommandHandler, MessageHandler, Filters
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Updater, InlineQueryHandler, CommandHandler, MessageHandler, Filters, CallbackQueryHandler
 import logging
 import time
-from time import gmtime, strftime
 from telegram.ext.dispatcher import run_async
-
+from datetime import datetime
 from xmlrpc.client import Server
 
 
@@ -34,17 +34,17 @@ class Atac(object):
 
     def get_percorso(self, fr, to):
         opt = { "mezzo" : 1, "piedi" : 1, "bus": True,
-        "metro" : True, "ferro" : True, "carpooling": False,
-        "max_distanza_bici" : 0,
-        "linee_escluse" : [],
-        "quando" : 0
+            "metro" : True, "ferro" : True, "carpooling": False,
+            "max_distanza_bici" : 0,
+            "linee_escluse" : [],
+            "quando" : 0
         }
-        res = self.percorso_server.percorso.Cerca(self.token, fr, to, opt, strftime("%Y-%m-%d %X", gmtime()), "it")
+        res = self.percorso_server.percorso.Cerca(self.token, fr, to, opt, datetime.now().strftime("%Y-%m-%d %X"), "it")
         #print("Res: " + str(res))
         return res
 
     def get_autobus_from_fermata(self, id_palina):
-        res = self.paline_server.paline.Previsioni(self.token, id_palina, 'it')
+        res = self.paline_server.paline.Previsioni(self.token, str(id_palina), 'it')
         m = res['risposta']['collocazione'] + "\n"
         inArrivo = res['risposta']['arrivi']
         for i in inArrivo:
@@ -59,37 +59,52 @@ atac = Atac(os.environ['ATAC_API_KEY'])
 # Define a few command handlers. These usually take the two arguments bot and
 # update. Error handlers also receive the raised TelegramError object in error.
 
-def echo(bot, update):
-     bot.sendMessage(chat_id=update.message.chat_id, text=update.message.text)
 
-def location(bot, update):
-    button_list = [[
-        ReplyKeyboardMarkup("col 1", ...),
-        ]]
-    reply_markup = ReplyKeyboardMarkup(button_list)
-    bot.send_message(chat_id=update.message.chat_id, text="A two-column menu", reply_markup=reply_markup)
 
 ######
 ###Commands :
 ######
+
+@run_async
+def echo(bot, update):
+     bot.sendMessage(chat_id=update.message.chat_id, text=update.message.text)
+
+@run_async
+def callback_query_handler(bot, update):
+    logger.info("Called callback_query_handler")
+    query = update.callback_query
+    keyboard = [[InlineKeyboardButton("Aggiorna", callback_data=query.data)]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    m = "\nAggiornate alle ore: " + str(datetime.now())
+    bot.editMessageText(text=atac.get_autobus_from_fermata(query.data) + m,
+                        chat_id=query.message.chat_id,
+                        message_id=query.message.message_id,
+                        reply_markup=reply_markup
+    )
+
 @run_async
 def start_ch(bot, update):
+    bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
     logger.info("Called /start command")
     update.message.reply_text("Ciao! Posso dirti la posizione degli autobus in arrivo e molto altro.\nUsa /help per una lista di comandi!")
 
 @run_async
 def fermata_ch(bot, update, args):
     logger.info("Called /fermata command")
-    stopNum = int(args[0])
-    logger.info(stopNum)
+    if len(args) > 0:
+        stopNum = int(args[0])
+    else:
+        update.message.reply_text("Dovresti inserire anche un numero di fermata, tipo /fermata 70101")
     bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
     #update.message.reply_text('Inserisci la tua fermata')
-    response = atac.get_autobus_from_fermata(str(stopNum))
-    update.message.reply_text(response)
+    keyboard = [[InlineKeyboardButton("Aggiorna", callback_data=str(stopNum))]]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    update.message.reply_text(atac.get_autobus_from_fermata(stopNum), reply_markup=reply_markup)
 
 @run_async
 def autobus_ch(bot, update):
     logger.info("Called /autobus command")
+    bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
     update.message.reply_text("Work in progress. In futuro ti darò informazioni sulle posizioni degli autobus.")
 
 @run_async
@@ -98,10 +113,10 @@ def help_ch(bot, update):
     bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
     update.message.reply_text('''
         TrasportiRomaBot ti darà informazioni sugli autobus a Roma!
-        I comandi supportati sono:
-        /start per iniziare il bot
-        /fermata per sapere quali autobus sono in arrivo
-        /autobus per sapere dove si trova un autobus
+ I comandi supportati sono:
+ /start per iniziare il bot
+ /fermata per sapere quali autobus sono in arrivo
+ /autobus per sapere dove si trova un autobus
     ''')
 
 @run_async
@@ -117,10 +132,11 @@ def main():
     dp = updater.dispatcher
 
     dp.add_handler(MessageHandler(Filters.text, echo))
+    dp.add_handler(CallbackQueryHandler(callback_query_handler))
     dp.add_handler(CommandHandler("start", start_ch))
     dp.add_handler(CommandHandler("help", help_ch))
-    dp.add_handler(CommandHandler("fermata", fermata_ch, pass_args=True))
-    dp.add_handler(CommandHandler("location", location))
+    dp.add_handler(CommandHandler("fermata", fermata_ch, pass_args=True, allow_edited=True))
+    #dp.add_handler(CommandHandler("location", location))
     dp.add_handler(CommandHandler("autobus", autobus_ch))
 
     # log all errors
