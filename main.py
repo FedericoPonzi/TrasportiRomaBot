@@ -69,8 +69,7 @@ states = {}
 
 @run_async
 def echo(bot, update):
-     if update['message']['chat']['id'] in states:
-         states[update['message']['chat']['id']] == State.FERMATA :
+     if update['message']['chat']['id'] in states and states[update['message']['chat']['id']] == State.FERMATA :
          fermata_ch(bot, update, [update.message.text])
          del states[update['message']['chat']['id']]
      else:
