@@ -11,7 +11,7 @@ import logging
 import time
 from telegram.ext.dispatcher import run_async
 from datetime import datetime
-from xmlrpc.client import Server
+from xmlrpc.client import Server, Fault
 
 
 # Enable logging
@@ -20,16 +20,27 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 logger = logging.getLogger(__name__)
 
-class Emoji(object):
-    def __init__(self):
-        self.autobus = "🚌"
-
-class State(object):
+class State:
     FERMATA = 0
+    def __init__(self):
+        self.statesDict = {}
+    def getState(self, chat_id):
+        if chat_id in self.statesDict:
+            return self.statesDict[chat_id]
+        return None
+    def removeState(self, chat_id):
+        if chat_id in self.statesDict:
+            del self.statesDict[chat_id]
+    def setState(self, chat_id, s):
+        self.statesDict[chat_id] = s
+
+
+class Emoji(object):
+    autobus = "🚌"
+    sad_face= "😣"
 
 class Atac(object):
     def __init__(self, api_key):
-        self.emoji = Emoji()
         auth_server = Server('http://muovi.roma.it/ws/xml/autenticazione/1')
         self.token = auth_server.autenticazione.Accedi(os.environ['ATAC_API_KEY'], '')
         self.paline_server = Server('http://muovi.roma.it/ws/xml/paline/7')
@@ -47,21 +58,35 @@ class Atac(object):
         return res
 
     def get_autobus_from_fermata(self, id_palina):
-        res = self.paline_server.paline.Previsioni(self.token, str(id_palina), 'it')
+        """ @Return: (bool success, string message)
+            success: true if called was successful
+                     false otherwise
+            message: The results (either error or the buses)
+        """
+        try:
+            res = self.paline_server.paline.Previsioni(self.token, str(id_palina), 'it')
+        except Fault as e:
+            if e.faultCode == 803:
+                m = "Fermata Palina inesistente " + Emoji.sad_face + " Riprova a scrivermi la palina!"
+            else:
+                m = "Ho incontrato un errore :( forse atac non è online al momento :("
+                log.error("Errore get_autobus_from_fermata richiesta palina ", id_palina, ", errore:", err)
+            return (False, m)
         m = res['risposta']['collocazione'] + "\n"
         inArrivo = res['risposta']['arrivi']
         for i in inArrivo:
-            m += self.emoji.autobus + " "
+            m += Emoji.autobus + " "
             m += i['linea'] + " - "
             m += i['annuncio'].replace("'", " minuti")
             m += "\n"
-        return m
+        return (True, m)
 
 
 ## Statics (for now):
 
 atac = Atac(os.environ['ATAC_API_KEY'])
-states = {}
+states = State()
+
 
 ######
 ###Commands :
@@ -69,23 +94,22 @@ states = {}
 
 @run_async
 def echo(bot, update):
-     if update['message']['chat']['id'] in states and states[update['message']['chat']['id']] == State.FERMATA :
+     if states.getState(update.message.chat_id) == State.FERMATA:
          fermata_ch(bot, update, [update.message.text])
-         del states[update['message']['chat']['id']]
+         states.removeState(update.message.chat_id)
      else:
          bot.sendMessage(chat_id=update.message.chat_id, text=update.message.text)
 
 @run_async
 def callback_query_handler(bot, update):
     logger.info("Called callback_query_handler")
-    if update['message']['chat']['id'] in states:
-        del states[update['message']['chat']['id']]
+    states.removeState(update.callback_query.message.chat_id)
 
     query = update.callback_query
     keyboard = [[InlineKeyboardButton("Aggiorna", callback_data=query.data)]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     m = "\nAggiornate alle " + str(datetime.now().strftime("%X"))
-    bot.editMessageText(text=atac.get_autobus_from_fermata(query.data) + m,
+    bot.editMessageText(text=atac.get_autobus_from_fermata(query.data)[1] + m, #should never fail c:
                         chat_id=query.message.chat_id,
                         message_id=query.message.message_id,
                         reply_markup=reply_markup
@@ -93,36 +117,36 @@ def callback_query_handler(bot, update):
 
 @run_async
 def start_ch(bot, update):
-    if update['message']['chat']['id'] in states:
-        del states[update['message']['chat']['id']]
     bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
+    states.removeState(update.message.chat_id)
     logger.info("Called /start command")
     update.message.reply_text("Ciao! Posso dirti la posizione degli autobus in arrivo e molto altro.\nUsa /help per una lista di comandi!")
 
 @run_async
 def fermata_ch(bot, update, args):
     bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
+    states.removeState(update.message.chat_id)
     logger.info("Called /fermata command")
-    if update['message']['chat']['id'] in states:
-        del states[update['message']['chat']['id']]
     if len(args) > 0:
-        stopNum = int(args[0])
-        print("stopnum setted.")
+        id_palina = int(args[0])
     else:
         update.message.reply_text("Qual'è il numero della fermata in cui ti trovi?")
-        states[update['message']['chat']['id']] = State.FERMATA
-        #update.message.reply_text("Dovresti inserire anche un numero di fermata, tipo /fermata 70101")
+        states.setState(update.message.chat_id, State.FERMATA)
         return
-
     #update.message.reply_text('Inserisci la tua fermata')
-    keyboard = [[InlineKeyboardButton("Aggiorna", callback_data=str(stopNum))]]
+    keyboard = [[InlineKeyboardButton("Aggiorna", callback_data=str(id_palina))]]
     reply_markup = InlineKeyboardMarkup(keyboard)
-    update.message.reply_text(atac.get_autobus_from_fermata(stopNum), reply_markup=reply_markup)
+    req = atac.get_autobus_from_fermata(id_palina)
+    if req[0]:
+        update.message.reply_text(req[1], reply_markup=reply_markup)
+    else:
+        states.setState(update.message.chat_id, State.FERMATA)
+        update.message.reply_text(req[1])
 
 @run_async
 def autobus_ch(bot, update):
-    if update['message']['chat']['id'] in states:
-        del states[update['message']['chat']['id']]
+    if update.message.chat_id in states:
+        del states[update.message.chat_id]
     logger.info("Called /autobus command")
     bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
     update.message.reply_text("Work in progress. In futuro ti darò informazioni sulle posizioni degli autobus.")
@@ -161,7 +185,6 @@ def main():
     ]
     for i in handlers:
         dp.add_handler(i)
-    #map(lambda x : dp.add_handler(x), handlers)
 
     # log all errors
     dp.add_error_handler(error)
