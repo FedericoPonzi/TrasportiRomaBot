@@ -7,7 +7,10 @@ import telegram
 from telegram.ext import Updater, InlineQueryHandler, CommandHandler, MessageHandler, Filters
 import logging
 import time
+from time import gmtime, strftime
+
 from xmlrpc.client import Server
+
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -29,8 +32,14 @@ class Atac(object):
         self.percorso_server = Server('http://muovi.roma.it/ws/xml/percorso/2')
 
     def get_percorso(self, fr, to):
-        res = self.percorso_server.percorso.Cerca(self.token, fr, to )
-        print("REs: " + res)
+        opt = { "mezzo" : 1, "piedi" : 1, "bus": True,
+        "metro" : True, "ferro" : True, "carpooling": False,
+        "max_distanza_bici" : 0,
+        "linee_escluse" : [],
+        "quando" : 0
+        }
+        res = self.percorso_server.percorso.Cerca(self.token, fr, to, opt, strftime("%Y-%m-%d %X", gmtime()), "it")
+        #print("Res: " + str(res))
         return res
 
     def get_autobus_from_fermata(self, id_palina):
@@ -48,9 +57,6 @@ atac = Atac(os.environ['ATAC_API_KEY'])
 
 # Define a few command handlers. These usually take the two arguments bot and
 # update. Error handlers also receive the raised TelegramError object in error.
-def start(bot, update):
-    logger.info("Called start command")
-
 
 def echo(bot, update):
      bot.sendMessage(chat_id=update.message.chat_id, text=update.message.text)
@@ -62,10 +68,13 @@ def location(bot, update):
     reply_markup = ReplyKeyboardMarkup(button_list)
     bot.send_message(chat_id=update.message.chat_id, text="A two-column menu", reply_markup=reply_markup)
 
+# Commands :
+def start_ch(bot, update):
+    logger.info("Called /start command")
+    update.message.reply_text("Ciao! Posso dirti la posizione degli autobus in arrivo e molto altro.\nUsa /help per una lista di comandi!")
 
-
-def fermataCH(bot, update, args):
-    logger.info("Called start command - args:" + str(args))
+def fermata_ch(bot, update, args):
+    logger.info("Called /fermata command")
     stopNum = int(args[0])
     logger.info(stopNum)
     bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
@@ -73,7 +82,12 @@ def fermataCH(bot, update, args):
     response = atac.get_autobus_from_fermata(str(stopNum))
     update.message.reply_text(response)
 
-def help(bot, update):
+def autobus_ch(bot, update):
+    logger.info("Called /autobus command")
+    update.message.reply_text("Work in progress. In futuro ti darò informazioni sulle posizioni degli autobus.")
+
+def help_ch(bot, update):
+    logger.info("Called /help command")
     bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
     update.message.reply_text('''
 TrasportiRomaBot ti darà informazioni sugli autobus a Roma!
@@ -94,10 +108,11 @@ def main():
     dp = updater.dispatcher
 
     dp.add_handler(MessageHandler(Filters.text, echo))
-    dp.add_handler(CommandHandler("start", start))
-    dp.add_handler(CommandHandler("help", help))
-    dp.add_handler(CommandHandler("fermata", fermataCH, pass_args=True))
+    dp.add_handler(CommandHandler("start", start_ch))
+    dp.add_handler(CommandHandler("help", help_ch))
+    dp.add_handler(CommandHandler("fermata", fermata_ch, pass_args=True))
     dp.add_handler(CommandHandler("location", location))
+    dp.add_handler(CommandHandler("autobus", autobus_ch))
 
     # log all errors
     dp.add_error_handler(error)
@@ -105,9 +120,6 @@ def main():
     # Start the Bot
     updater.start_polling()
     logger.info("Going idle..")
-
-    atac.get_percorso("Via ardeatina 1696", "Roma Termini")
-
 
     # Block until the user presses Ctrl-C or the process receives SIGINT,
     # SIGTERM or SIGABRT. This should be used most of the time, since
