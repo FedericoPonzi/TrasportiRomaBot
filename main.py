@@ -70,7 +70,7 @@ class Atac(object):
                 m = "Fermata Palina inesistente " + Emoji.sad_face + " Riprova a scrivermi la palina!"
             else:
                 m = "Ho incontrato un errore :( forse atac non è online al momento :("
-                logger.error("Errore get_autobus_from_fermata richiesta palina ", id_palina, ", errore:", err)
+                logger.error("Errore get_autobus_from_fermata richiesta palina ", id_palina, ", errore:", e)
             return (False, m)
         m = res['risposta']['collocazione'] + "\n"
         inArrivo = res['risposta']['arrivi']
