@@ -70,7 +70,7 @@ class Atac(object):
                 m = "Fermata Palina inesistente " + Emoji.sad_face + " Riprova a scrivermi la palina!"
             else:
                 m = "Ho incontrato un errore :( forse atac non è online al momento :("
-                log.error("Errore get_autobus_from_fermata richiesta palina ", id_palina, ", errore:", err)
+                logger.error("Errore get_autobus_from_fermata richiesta palina ", id_palina, ", errore:", err)
             return (False, m)
         m = res['risposta']['collocazione'] + "\n"
         inArrivo = res['risposta']['arrivi']
@@ -137,7 +137,7 @@ def fermata_ch(bot, update, args):
     keyboard = [[InlineKeyboardButton("Aggiorna", callback_data=str(id_palina))]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     req = atac.get_autobus_from_fermata(id_palina)
-    if req[0]:
+    if req[0]: #Se la richiesta è andata a buon fine.
         update.message.reply_text(req[1], reply_markup=reply_markup)
     else:
         states.setState(update.message.chat_id, State.FERMATA)
