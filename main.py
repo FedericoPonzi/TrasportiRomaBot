@@ -145,16 +145,14 @@ def fermata_ch(bot, update, args):
 
 @run_async
 def autobus_ch(bot, update):
-    if update.message.chat_id in states:
-        del states[update.message.chat_id]
+    states.removeState(update.message.chat_id)
     logger.info("Called /autobus command")
     bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
     update.message.reply_text("Work in progress. In futuro ti darò informazioni sulle posizioni degli autobus.")
 
 @run_async
 def help_ch(bot, update):
-    if update['message']['chat']['id'] in states:
-        del states[update['message']['chat']['id']]
+    states.removeState(update.message.chat_id)
     logger.info("Called /help command")
     bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
     update.message.reply_text('''
