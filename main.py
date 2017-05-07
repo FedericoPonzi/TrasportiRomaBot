@@ -79,7 +79,6 @@ class AtacBot(object):
                 return self.generic_error
         res = res['risposta']
         m = "Id linea: " + str(id_percorso)
-        logger.info(res['fermate'])
         for i in res['fermate']:
             m += i['nome_ricapitalizzato']
 
