@@ -211,8 +211,6 @@ def callback_query_handler(bot, update):
         else:
             update.message.reply_text(req.message)
 
-    states.removeState(update.callback_query.message.chat_id)
-
 @run_async
 def start_ch(bot, update):
     bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
