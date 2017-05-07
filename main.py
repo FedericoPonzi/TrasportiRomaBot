@@ -12,6 +12,8 @@ import time
 from telegram.ext.dispatcher import run_async
 from datetime import datetime
 from xmlrpc.client import Server, Fault
+from urllib.parse import urljoin
+from emoji import emojize
 
 
 # Enable logging
@@ -34,28 +36,40 @@ class State:
     def setState(self, chat_id, s):
         self.statesDict[chat_id] = s
 
+class AtacBot(object):
+    def __init__(self, atac_api_key):
+        self.atac_api_key = atac_api_key
+        atac_api = "http://muovi.roma.it/ws/xml/"
+        self.auth_server = Server(urljoin(atac_api, "autenticazione/" + "1"))
+        self.paline_server = Server(urljoin(atac_api, "paline/" + "7"))
+        self.percorso_server = Server(urljoin(atac_api, "percorso/" + "2"))
+        self.__updateToken()
+        self.generic_error = emojize("Ho incontrato un errore :pensive: forse atac non è online al momento :worried:. Riprova fra poco!", use_aliases=True)
 
-class Emoji(object):
-    autobus = "🚌"
-    sad_face= "😣"
-
-class Atac(object):
-    def __init__(self, api_key):
-        auth_server = Server('http://muovi.roma.it/ws/xml/autenticazione/1')
-        self.token = auth_server.autenticazione.Accedi(os.environ['ATAC_API_KEY'], '')
-        self.paline_server = Server('http://muovi.roma.it/ws/xml/paline/7')
-        self.percorso_server = Server('http://muovi.roma.it/ws/xml/percorso/2')
+    def __updateToken(self):
+        logger.info("Logging on atac's api")
+        self.token = self.auth_server.autenticazione.Accedi(self.atac_api_key, "")
 
     def get_percorso(self, fr, to):
         opt = { "mezzo" : 1, "piedi" : 1, "bus": True,
             "metro" : True, "ferro" : True, "carpooling": False,
-            "max_distanza_bici" : 0,
-            "linee_escluse" : [],
+            "max_distanza_bici" : 0, "linee_escluse" : [],
             "quando" : 0
         }
-        res = self.percorso_server.percorso.Cerca(self.token, fr, to, opt, datetime.now().strftime("%Y-%m-%d %X"), "it")
-        #print("Res: " + str(res))
-        return res
+        try:
+            res = self.percorso_server.percorso.Cerca(
+                self.token, fr, to, opt,
+                datetime.now().strftime("%Y-%m-%d %X"), "it")
+        except Fault as e:
+            logger.warn("Reauthenticating on atac api..")
+            if e.faultCode == 824:
+                self.__updateToken()
+                m = self.get_percorso()
+            else:
+                m = self.generic_error
+            return (False, m)
+        print("Res: " + str(res))
+        return (True, res)
 
     def get_autobus_from_fermata(self, id_palina):
         """ @Return: (bool success, string message)
@@ -67,24 +81,23 @@ class Atac(object):
             res = self.paline_server.paline.Previsioni(self.token, str(id_palina), 'it')
         except Fault as e:
             if e.faultCode == 803:
-                m = "Fermata Palina inesistente " + Emoji.sad_face + " Riprova a scrivermi la palina!"
+                m = emojize("Fermata Palina inesistente :persevere: Riprova a scrivermi la palina!")
             else:
-                m = "Ho incontrato un errore :( forse atac non è online al momento :("
+                m = self.generic_error
                 logger.error("Errore get_autobus_from_fermata richiesta palina ", id_palina, ", errore:", e)
             return (False, m)
         m = res['risposta']['collocazione'] + "\n"
         inArrivo = res['risposta']['arrivi']
         for i in inArrivo:
-            m += Emoji.autobus + " "
+            m += ":bus: "
             m += i['linea'] + " - "
             m += i['annuncio'].replace("'", " minuti")
             m += "\n"
-        return (True, m)
+        return (True, emojize(m))
 
 
 ## Statics (for now):
-
-atac = Atac(os.environ['ATAC_API_KEY'])
+atac = AtacBot(os.environ['ATAC_API_KEY'])
 states = State()
 
 
