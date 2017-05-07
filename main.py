@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 
 class State:
     FERMATA = 0
+    LINEA   = 1
     def __init__(self):
         self.statesDict = {}
     def getState(self, chat_id):
@@ -36,7 +37,23 @@ class State:
     def setState(self, chat_id, s):
         self.statesDict[chat_id] = s
 
+class BotResponse(object):
+    def __init__(self, isGood, message, additional_data=None, secondary_message="")
+        self.isGood = isGood
+        self.message= emojize(message, use_aliases = True)
+        self.additional_data = None
+        self.secondary_message = secondary_message
+
+
 class AtacBot(object):
+
+    """Format of returns:
+    tuples of the format
+    <bool req_result, str message, additional_data>
+    Where req_result is the result of the request (true = fine, false= error)
+    message = message to reply
+    additional_data = dictionary, list with more info in case of req_result == true
+    """
     def __init__(self, atac_api_key):
         self.atac_api_key = atac_api_key
         atac_api = "http://muovi.roma.it/ws/xml/"
@@ -50,6 +67,29 @@ class AtacBot(object):
     def __updateToken(self):
         logger.info("Logging on atac's api")
         self.token = self.auth_server.autenticazione.Accedi(self.atac_api_key, "")
+
+    def get_linee_from_palina(self, id_palina):
+        #Questo metodo restituisce l'elenco delle linee che transitano per la palina id_palina, con le relative informazioni (monitorata, abilitata)
+        return self.paline.PalinaLinee(self.token, id_palina)
+
+    def get_prossima_partenza(self, id_percorso):
+         #atac.paline_server.paline.ProssimaPartenza(atac.token, "1978", "it")
+         #{'id_richiesta': 'd90771ab7defe73b6cf5620a428d3cbb', 'risposta': '2017-05-07 13:05:00'}
+         return self.paline_server.paline.ProssimaPartenza(self.token, id_percorso, "it")
+
+    def get_autobus_info(self, autobus):
+        try:
+            res = self.paline_server.paline.Percorsi(self.token, str(autobus), "it")
+        except Fault as e:
+            raise e
+        m = "Linea " + autobus
+        res = res['risposta']
+        if res["monitorata"] == 1 and res["abilitata"]:
+            m+="Linea monitorata e abilitata per ricevere informazioni sugli orari!"
+        else:
+            return (False, "La linea non è monitorata :worried:")
+        m+="In che direzione stai andando?"
+        return (True, m, res['percorsi'])
 
     def get_percorso(self, fr, to):
         opt = { "mezzo" : 1, "piedi" : 1, "bus": True,
@@ -69,7 +109,6 @@ class AtacBot(object):
             else:
                 m = self.generic_error
             return (False, m)
-        print("Res: " + str(res))
         return (True, res)
 
     def get_autobus_from_fermata(self, id_palina):
@@ -88,8 +127,6 @@ class AtacBot(object):
                 logger.error("Errore get_autobus_from_fermata richiesta palina ", id_palina, ", errore:", e)
             return (False, m)
         m = res['risposta']['collocazione'] + "\n"
-        logger.info("Risposta: ", res)
-        print(res)
         inArrivo = res['risposta']['arrivi']
         if len(inArrivo) > 0:
             for i in inArrivo:
@@ -163,11 +200,24 @@ def fermata_ch(bot, update, args):
         update.message.reply_text(req[1])
 
 @run_async
-def autobus_ch(bot, update):
+def autobus_ch(bot, update, args):
     states.removeState(update.message.chat_id)
     logger.info("Called /autobus command")
     bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
-    update.message.reply_text("Work in progress. In futuro ti darò informazioni sulle posizioni degli autobus.")
+    if len(args) > 0:
+        id_autobus = str(args[0])
+    else:
+        update.message.reply_text("Usa /autobus numeroautobus per favore.")
+        return
+    req = atac.get_autobus_info(id_autobus)
+    if req[0]:
+        keyboard = [[InlineKeyboardButton(direzione['capolinea'] , callback_data=direzione['id_percorso'])] for direzione in req[2]]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        update.message.reply_text(req[1], reply_markup=reply_markup)
+    else:
+        states.setState(update.message.chat_id, State.LINEA)
+        update.message.reply_text(req[1])
+    #update.message.reply_text("Work in progress. In futuro ti darò informazioni sulle posizioni degli autobus.")
 
 @run_async
 def help_ch(bot, update):
@@ -197,8 +247,8 @@ def main():
         CallbackQueryHandler(callback_query_handler),
         CommandHandler("start", start_ch),
         CommandHandler("help", help_ch),
-        CommandHandler("fermata", fermata_ch, pass_args=True, allow_edited=True),
-        CommandHandler("autobus", autobus_ch)
+        CommandHandler("fermata", fermata_ch, pass_args=True),
+        CommandHandler("autobus", autobus_ch, pass_args=True)
     ]
     for i in handlers:
         dp.add_handler(i)
