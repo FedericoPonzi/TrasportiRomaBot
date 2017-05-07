@@ -43,6 +43,7 @@ class AtacBot(object):
         self.auth_server = Server(urljoin(atac_api, "autenticazione/" + "1"))
         self.paline_server = Server(urljoin(atac_api, "paline/" + "7"))
         self.percorso_server = Server(urljoin(atac_api, "percorso/" + "2"))
+
         self.__updateToken()
         self.generic_error = emojize("Ho incontrato un errore :pensive: forse atac non è online al momento :worried:. Riprova fra poco!", use_aliases=True)
 
@@ -87,13 +88,18 @@ class AtacBot(object):
                 logger.error("Errore get_autobus_from_fermata richiesta palina ", id_palina, ", errore:", e)
             return (False, m)
         m = res['risposta']['collocazione'] + "\n"
+        logger.info("Risposta: ", res)
+        print(res)
         inArrivo = res['risposta']['arrivi']
-        for i in inArrivo:
-            m += ":bus: "
-            m += i['linea'] + " - "
-            m += i['annuncio'].replace("'", " minuti")
-            m += "\n"
-        return (True, emojize(m))
+        if len(inArrivo) > 0:
+            for i in inArrivo:
+                m += ":bus: "
+                m += i['linea'] + " - "
+                m += i['annuncio'].replace("'", " minuti")
+                m += "\n"
+        else:
+            return (False, emojize("Non ci sono informazioni su autobus in arrivo :persevere:", use_aliases=True))
+        return (True, emojize(m, use_aliases=True))
 
 
 ## Statics (for now):
