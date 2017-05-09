@@ -14,6 +14,7 @@ from datetime import datetime
 from xmlrpc.client import Server, Fault
 from urllib.parse import urljoin
 from emoji import emojize
+import dateutil.parser
 
 
 # Enable logging
@@ -21,6 +22,17 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
                     level=logging.INFO)
 
 logger = logging.getLogger(__name__)
+
+"""
+TODO:
+    * Aggiungere orari autobus (https://bitbucket.org/agenziamobilita/muoversi-a-roma/wiki/paline.Percorso)
+    * Modificare lo stato: aggiungero alle callback e rimuovere riferimenti allo stato.
+        * Modificare callback_handler, parsing della response e decisione su quello.
+    * Aggiungere possibilità di cercare percorso
+    * Aggiungere possibilità di prendere posizione come palina
+    * Aggiungere stato del traffico (https://bitbucket.org/agenziamobilita/muoversi-a-roma/wiki/tempi.TempiTratta)
+"""
+
 
 class State:
     FERMATA = 0
@@ -58,7 +70,8 @@ class AtacBot(object):
         self.auth_server = Server(urljoin(atac_api, "autenticazione/" + "1"))
         self.paline_server = Server(urljoin(atac_api, "paline/" + "7"))
         self.percorso_server = Server(urljoin(atac_api, "percorso/" + "2"))
-        self.server_resp_codes = {"expired_session" : 824}
+        self.server_resp_codes = {"expired_session" : 824, "unknown_percorso" : 807,
+        "unknwon_palina": 803}
 
         self.__updateToken()
         self.generic_error = BotResponse(False, "Ho incontrato un errore :pensive: forse atac non è online al momento :worried:. Riprova fra poco!")
@@ -66,28 +79,82 @@ class AtacBot(object):
     def __updateToken(self):
         logger.info("Logging on atac's api")
         self.token = self.auth_server.autenticazione.Accedi(self.atac_api_key, "")
+    def get_orari_bus(self, id_percorso):
+        pass
+    def get_prossima_partenza(self, id_percorso):
+        """ Next trip from the headline.
+        """
+        #atac.paline_server.paline.ProssimaPartenza(atac.token, "1978", "it")
+        #{'id_richiesta': 'd90771ab7defe73b6cf5620a428d3cbb', 'risposta': '2017-05-07 13:05:00'}
+        logger.info("get_prossima_partenza called")
+        try:
+            res = self.paline_server.paline.ProssimaPartenza(self.token, id_percorso, "it")
+            data = dateutil.parser.parse(res['risposta'])
+            #now = datetime.now()
+            frmtstr = "%-H:%M" #TODO
+
+            m = "La prossima partenza dal capolinea è alle "+ str(data.strftime(frmtstr)) + " :blush:"
+            diff_delta = data - datetime.now()
+            m += ", ovvero fra "
+            if (diff_delta.days == 1):
+                m+= "un giorno e "
+            if (diff_delta.days > 1):
+                m+= str(diff_delta.days) + " giorni e "
+            diff_minutes = int(diff_delta.seconds / 60)
+            hours = int(diff_minutes/60)
+            minutes = diff_minutes % 60
+            if hours == 1:
+                m+= "un'ora "
+            if hours > 1:
+                m+= str(hours) + " ore"
+            if minutes == 1:
+                m+=" un minuto."
+            if minutes > 1 :
+                m+= str(minutes) + " minuti."
+            ret = BotResponse(True, m)
+        except Fault as e:
+            if e.faultCode == self.server_resp_codes['expired_session']:
+                self.__updateToken()
+                return self.get_prossima_partenza(id_palina)
+            elif e.faultCode == self.server_resp_codes['unknown_percorso']: #should never happen
+                logger.error("Errore get_autobus_from_fermata richiesta palina ", id_palina, ", errore:", e)
+                ret = "Non conosco il percorso specificato "
+            else:
+                logger.error("Generic error", e)
+                ret = self.generic_error
+        return ret
 
     def get_percorso_info(self, id_percorso):
+        """ Get informations about a trip. A trip is basically an id which
+            refers to a bus + it's direction( es: bus 218 direction Porta S.Giovanni has id 1978 )
+        """
         try:
             res = self.paline_server.paline.Percorso(self.token, str(id_percorso), "" ,"", "it")
         except Fault as e:
             if e.faultCode == self.server_resp_codes['expired_session']:
                 self.__updateToken()
                 return self.get_percorso_info(id_percorso)
-            else:
+            else: ##tood unknown_percorso
                 logger.error("get_percorso_info error:", e)
                 return self.generic_error
         res = res['risposta']
-        m = "Id linea: " + str(id_percorso)
+        print(res)
+        m = "Informazioni per la linea " + res['percorso']['id_linea'] + " direzione " + res['percorso']['arrivo'] +"\n\n"
         for i in res['fermate']:
-            m += i['nome_ricapitalizzato']
-
+            m += " :small_blue_diamond: " + i['nome_ricapitalizzato']
             if "veicolo" in i:
-                m+= ":bus:"
+                m+= " - Un :bus: ha appena passato questa fermata!"
             m+="\n"
+            if i['soppressa']:
+                m+= " - Questa fermata è soppressa :unamused:"
+        req_next_trip = self.get_prossima_partenza(id_percorso)
+        m +=  "\n" + req_next_trip.message +"\n"
         return BotResponse(True, m)
 
     def get_autobus_info(self, autobus):
+        """ Gets informations about the directions of the bus
+            Returns question about the direction of the bus.
+        """
         try:
             res = self.paline_server.paline.Percorsi(self.token, str(autobus), "it")
         except Fault as e:
@@ -105,15 +172,12 @@ class AtacBot(object):
         return BotResponse(True, m, res['percorsi'])
 
     def get_autobus_from_fermata(self, id_palina):
-        """ @Return: (bool success, string message)
-            success: true if called was successful
-                     false otherwise
-            message: The results (either error or the buses)
+        """ Gets a list of busses and their distance in time/space from the stop.
         """
         try:
             res = self.paline_server.paline.Previsioni(self.token, str(id_palina), 'it')
         except Fault as e:
-            if e.faultCode == 803:
+            if e.faultCode == self.server_resp_codes['unknown_palina']:
                 m = BotResponse(False, "Fermata Palina inesistente :persevere: Riprova a scrivermi la palina!")
             elif e.faultCode == self.server_resp_codes['expired_session']:
                 self.__updateToken()
@@ -131,7 +195,7 @@ class AtacBot(object):
                 m += i['annuncio'].replace("'", " minuti")
                 m += "\n"
         else:
-            BotResponse(False, "Non ci sono informazioni su autobus in arrivo :persevere:")
+            return BotResponse(False, m + "Non ci sono informazioni su autobus in arrivo :persevere:")
         return BotResponse(True, m)
 
     ###Unused:
@@ -158,10 +222,7 @@ class AtacBot(object):
         #Questo metodo restituisce l'elenco delle linee che transitano per la palina id_palina, con le relative informazioni (monitorata, abilitata)
         return self.paline.PalinaLinee(self.token, id_palina)
 
-    def get_prossima_partenza(self, id_percorso):
-         #atac.paline_server.paline.ProssimaPartenza(atac.token, "1978", "it")
-         #{'id_richiesta': 'd90771ab7defe73b6cf5620a428d3cbb', 'risposta': '2017-05-07 13:05:00'}
-         return self.paline_server.paline.ProssimaPartenza(self.token, id_percorso, "it")
+
 
 
 
@@ -208,8 +269,7 @@ def callback_query_handler(bot, update):
                                 chat_id=query.message.chat_id,
                                 message_id=query.message.message_id,
                                 reply_markup=reply_markup)
-        else:
-            update.message.reply_text(req.message)
+
 
 @run_async
 def start_ch(bot, update):
