@@ -15,6 +15,8 @@ from xmlrpc.client import Server, Fault
 from urllib.parse import urljoin
 from emoji import emojize
 import dateutil.parser
+import locale
+locale.setlocale(locale.LC_ALL, 'it_IT.utf8')
 
 
 # Enable logging
@@ -33,8 +35,13 @@ TODO:
     * Aggiungere stato del traffico (https://bitbucket.org/agenziamobilita/muoversi-a-roma/wiki/tempi.TempiTratta)
 """
 
-
+class CallbackType:
+    """Used for callbacks. Format type-value"""
+    update_fermata = "0"
+    update_percorso = "1"
+    orari_autobus = "2"
 class State:
+    """Used to keep state of the conversation."""
     FERMATA = 0
     LINEA   = 1
     def __init__(self):
@@ -56,7 +63,6 @@ class BotResponse(object):
         self.data = data
 
 class AtacBot(object):
-
     """Format of returns:
     tuples of the format
     <bool req_result, str message, additional_data>
@@ -71,7 +77,7 @@ class AtacBot(object):
         self.paline_server = Server(urljoin(atac_api, "paline/" + "7"))
         self.percorso_server = Server(urljoin(atac_api, "percorso/" + "2"))
         self.server_resp_codes = {"expired_session" : 824, "unknown_percorso" : 807,
-        "unknwon_palina": 803}
+        "unknown_palina": 803}
 
         self.__updateToken()
         self.generic_error = BotResponse(False, "Ho incontrato un errore :pensive: forse atac non è online al momento :worried:. Riprova fra poco!")
@@ -79,8 +85,39 @@ class AtacBot(object):
     def __updateToken(self):
         logger.info("Logging on atac's api")
         self.token = self.auth_server.autenticazione.Accedi(self.atac_api_key, "")
+
     def get_orari_bus(self, id_percorso):
-        pass
+        logger.info("get_orari_bus called")
+
+        try:
+            res = self.paline_server.paline.Percorso(self.token, str(id_percorso), "" ,datetime.now().strftime("%Y-%m-%d"), "it")
+        except Fault as e:
+            if e.faultCode == self.server_resp_codes['expired_session']:
+                self.__updateToken()
+                return self.get_percorso_info(id_percorso)
+            else: ##tood unknown_percorso
+                logger.error("get_percorso_info error:", e)
+                return self.generic_error
+        res = res['risposta']
+        if res['no_orari']:
+            ret = BotResponse(False, "Non ci sono orari per quel giorno :(")
+        else:
+            capolinea = res['percorsi'][0]['arrivo']
+            lista_orari = res['orari_partenza']
+            orario = ""
+            for ind, i in enumerate(lista_orari):
+                if len(i['minuti']) > 0:
+                    orario += ":clock"+ str(((int(i['ora'])-1)%12+1)) +": "
+
+                    for minuti in i['minuti']:
+                        orario += i['ora'] + ":" + minuti
+                        if ind < len(lista_orari) - 1:
+                            orario += ", "
+                    orario +="\n"
+            m = "Queste sono le partenze da ''" + capolinea +"' per oggi, "+ datetime.today().strftime("%A, %d %B") +":\n"
+            m += orario
+            ret = BotResponse(True, m)
+        return ret
     def get_prossima_partenza(self, id_percorso):
         """ Next trip from the headline.
         """
@@ -138,7 +175,6 @@ class AtacBot(object):
                 logger.error("get_percorso_info error:", e)
                 return self.generic_error
         res = res['risposta']
-        print(res)
         m = "Informazioni per la linea " + res['percorso']['id_linea'] + " direzione " + res['percorso']['arrivo'] +"\n\n"
         for i in res['fermate']:
             m += " :small_blue_diamond: " + i['nome_ricapitalizzato']
@@ -235,41 +271,59 @@ states = State()
 ######
 @run_async
 def echo(bot, update):
-     if states.getState(update.message.chat_id) == State.FERMATA:
+     user_state = states.getState(update.message.chat_id)
+     if user_state == State.FERMATA:
          fermata_ch(bot, update, [update.message.text])
+         states.removeState(update.message.chat_id)
+     elif user_state == State.LINEA:
+         autobus_ch(bot, update, [update.message.text])
          states.removeState(update.message.chat_id)
      else:
          bot.sendMessage(chat_id=update.message.chat_id, text=update.message.text)
 
+
 @run_async
 def callback_query_handler(bot, update):
     logger.info("Called callback_query_handler")
-    c_id = update.callback_query.message.chat_id
-    if states.getState(c_id) == State.FERMATA:
-        query = update.callback_query
-        keyboard = [[InlineKeyboardButton("Aggiorna", callback_data=query.data)]]
+    query = update.callback_query
+
+    c_id = query.message.chat_id
+    data = query.data #in the format "state-message"
+    callback_type, val = data.split("-")
+
+    if callback_type == CallbackType.update_fermata:
+        keyboard = [[InlineKeyboardButton("Aggiorna", callback_data=data)]]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        req = atac.get_autobus_from_fermata(query.data)
+        req = atac.get_autobus_from_fermata(val)
         if req.isSuccess:
             m = "\nAggiornate alle " + str(datetime.now().strftime("%X"))
             bot.editMessageText(text=req.message + m,
-                                chat_id=query.message.chat_id,
+                                chat_id=c_id,
                                 message_id=query.message.message_id,
                                 reply_markup=reply_markup)
         else:
             update.message.reply_text(req.message)
-    elif states.getState(c_id) == State.LINEA:
-        query = update.callback_query
-        keyboard = [[InlineKeyboardButton("Aggiorna", callback_data=query.data)]]
+    elif callback_type == CallbackType.update_percorso:
+        keyboard = [[InlineKeyboardButton("Aggiorna", callback_data=data),
+                    InlineKeyboardButton("Orari partenze",
+                        callback_data=CallbackType.orari_autobus + "-" + val)]]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        req = atac.get_percorso_info(query.data)
+        req = atac.get_percorso_info(val)
         if req.isSuccess:
             m = "\nAggiornate alle " + str(datetime.now().strftime("%X"))
             bot.editMessageText(text=req.message + m,
-                                chat_id=query.message.chat_id,
+                                chat_id=c_id,
                                 message_id=query.message.message_id,
                                 reply_markup=reply_markup)
+        else:
+            update.message.reply_text(req.message)
+    elif callback_type == CallbackType.orari_autobus:
+        req = atac.get_orari_bus(val)
+        #reply with both error and response in the same way:
+        bot.send_message(chat_id=c_id, text=req.message)
 
+    else:
+        update.message.reply_text("Non ho capito :( Probabilmente è un bug. Potresti dirlo a @FedericoPonzi? Grazie")
 
 @run_async
 def start_ch(bot, update):
@@ -290,7 +344,7 @@ def fermata_ch(bot, update, args):
         states.setState(update.message.chat_id, State.FERMATA)
         return
     #update.message.reply_text('Inserisci la tua fermata')
-    keyboard = [[InlineKeyboardButton("Aggiorna", callback_data=str(id_palina))]]
+    keyboard = [[InlineKeyboardButton("Aggiorna", callback_data=CallbackType.update_fermata + "-" + str(id_palina))]]
     reply_markup = InlineKeyboardMarkup(keyboard)
     req = atac.get_autobus_from_fermata(id_palina)
     if req.isSuccess: #Se la richiesta è andata a buon fine.
@@ -307,16 +361,16 @@ def autobus_ch(bot, update, args):
     if len(args) > 0:
         id_autobus = str(args[0])
     else:
-        update.message.reply_text("Usa /autobus numeroautobus per favore.")
+        update.message.reply_text("Di quale linea vorresti informazioni?")
+        states.setState(update.message.chat_id, State.LINEA)
         return
     req = atac.get_autobus_info(id_autobus)
     if req.isSuccess:
-        keyboard = [[InlineKeyboardButton(direzione['capolinea'] , callback_data=direzione['id_percorso'])] for direzione in req.data]
+        keyboard = [[InlineKeyboardButton(direzione['capolinea'] , callback_data=CallbackType.update_percorso + "-" + direzione['id_percorso'])] for direzione in req.data]
         reply_markup = InlineKeyboardMarkup(keyboard)
-        states.setState(update.message.chat_id, State.LINEA)
         update.message.reply_text(req.message, reply_markup=reply_markup)
     else: #Errore case, hide the reply markup
-        states.setState(update.message.chat_id, State.LINEA)
+        states.setState(update.message.chat_id, State.LINEA) #TODO request again bus
         update.message.reply_text(req.message)
     #update.message.reply_text("Work in progress. In futuro ti darò informazioni sulle posizioni degli autobus.")
 
