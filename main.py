@@ -114,7 +114,7 @@ class AtacBot(object):
                         if ind < len(lista_orari) - 1:
                             orario += ", "
                     orario +="\n"
-            m = "Queste sono le partenze da ''" + capolinea +"' per oggi, "+ datetime.today().strftime("%A, %d %B") +":\n"
+            m = "Queste sono le partenze da ''" + capolinea +"' per oggi "+ datetime.today().strftime("%A, %d %B") +":\n"
             m += orario
             ret = BotResponse(True, m)
         return ret
@@ -176,14 +176,18 @@ class AtacBot(object):
                 return self.generic_error
         res = res['risposta']
         m = "Informazioni per la linea " + res['percorso']['id_linea'] + " direzione " + res['percorso']['arrivo'] +"\n\n"
+        presente_veicolo = False
         for i in res['fermate']:
             m += " :small_blue_diamond: " + i['nome_ricapitalizzato']
             if "veicolo" in i:
+                presente_veicolo = True
                 m+= " - Un :bus: ha appena passato questa fermata!"
-            m+="\n"
             if i['soppressa']:
                 m+= " - Questa fermata è soppressa :unamused:"
+            m+="\n"
         req_next_trip = self.get_prossima_partenza(id_percorso)
+        if not presente_veicolo:
+            m += "\n Non ho informazioni riguardanti le posizioni dei veicoli sulla linea :worried: prova ad aggiornare!\n"
         m +=  "\n" + req_next_trip.message +"\n"
         return BotResponse(True, m)
 
@@ -257,9 +261,6 @@ class AtacBot(object):
     def get_linee_from_palina(self, id_palina):
         #Questo metodo restituisce l'elenco delle linee che transitano per la palina id_palina, con le relative informazioni (monitorata, abilitata)
         return self.paline.PalinaLinee(self.token, id_palina)
-
-
-
 
 
 ## Statics (for now):
@@ -381,12 +382,11 @@ def help_ch(bot, update):
     bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
     update.message.reply_text('''
         TrasportiRomaBot ti darà informazioni sugli autobus a Roma!
- I comandi supportati sono:
- /start per iniziare il bot
- /fermata quali autobus sono in arrivo
- /autobus dove si trova un autobus
- /prossimo fra quanto parte il prossimo autobus
-    ''')
+         I comandi supportati sono:
+         /start per iniziare il bot
+         /fermata quali autobus sono in arrivo
+         /autobus orari e informazioni su una linea
+''')
 
 @run_async
 def error(bot, update, error):
