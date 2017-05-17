@@ -77,8 +77,7 @@ class AtacBot(object):
         self.paline_server = Server(urljoin(atac_api, "paline/" + "7"))
         self.percorso_server = Server(urljoin(atac_api, "percorso/" + "2"))
         self.server_resp_codes = {"expired_session" : 824, "unknown_percorso" : 807,
-        "unknown_palina": 803}
-
+        "unknown_palina": 803, "linea_inesistente" : 804}
         self.__updateToken()
         self.generic_error = BotResponse(False, "Ho incontrato un errore :pensive: forse atac non è online al momento :worried:. Riprova fra poco!")
 
@@ -171,7 +170,9 @@ class AtacBot(object):
             if e.faultCode == self.server_resp_codes['expired_session']:
                 self.__updateToken()
                 return self.get_percorso_info(id_percorso)
-            else: ##tood unknown_percorso
+            elif e.faultCode == self.server_resp_codes['unknown_percorso']: # should never happend(never inputted)
+                return BotResponse(False, "Non conosco il percorso indicato. :worried:")
+            else:
                 logger.error("get_percorso_info error:", e)
                 return self.generic_error
         res = res['risposta']
@@ -201,7 +202,8 @@ class AtacBot(object):
             if e.faultCode == self.server_resp_codes['expired_session']:
                 self.__updateToken()
                 return self.get_autobus_info(autobus)
-            raise e
+            elif e.faultCode == self.server_resp_codes['linea_inesistente']:
+                return BotResponse(False, "Linea inesistente :worried:")
         res = res['risposta']
         m = "Linea " + autobus + "\n"
         if res["monitorata"] == 1 and res["abilitata"]:
@@ -359,10 +361,11 @@ def autobus_ch(bot, update, args):
     states.removeState(update.message.chat_id)
     logger.info("Called /autobus command")
     bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
+    infoText = "Di quale linea vorresti informazioni?"
     if len(args) > 0:
         id_autobus = str(args[0])
     else:
-        update.message.reply_text("Di quale linea vorresti informazioni?")
+        update.message.reply_text(infoText)
         states.setState(update.message.chat_id, State.LINEA)
         return
     req = atac.get_autobus_info(id_autobus)
@@ -371,8 +374,9 @@ def autobus_ch(bot, update, args):
         reply_markup = InlineKeyboardMarkup(keyboard)
         update.message.reply_text(req.message, reply_markup=reply_markup)
     else: #Errore case, hide the reply markup
-        states.setState(update.message.chat_id, State.LINEA) #TODO request again bus
+        states.setState(update.message.chat_id, State.LINEA)
         update.message.reply_text(req.message)
+        update.message.reply_text(infoText)
     #update.message.reply_text("Work in progress. In futuro ti darò informazioni sulle posizioni degli autobus.")
 
 @run_async
@@ -386,6 +390,9 @@ def help_ch(bot, update):
          /start per iniziare il bot
          /fermata quali autobus sono in arrivo
          /autobus orari e informazioni su una linea
+         Tutte le info su cui mi baso sono di Atac, per questo motivo è colpa loro se sono imprecise.
+         Per info: http://bots.informaticalab.com
+         Per feedback: @FedericoPonzi
 ''')
 
 @run_async
