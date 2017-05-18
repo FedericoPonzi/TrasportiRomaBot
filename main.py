@@ -26,13 +26,16 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 """
-TODO:
+Soft TODO:
     * Aggiungere orari autobus (https://bitbucket.org/agenziamobilita/muoversi-a-roma/wiki/paline.Percorso)
-    * Modificare lo stato: aggiungero alle callback e rimuovere riferimenti allo stato.
-        * Modificare callback_handler, parsing della response e decisione su quello.
     * Aggiungere possibilità di cercare percorso
     * Aggiungere possibilità di prendere posizione come palina
     * Aggiungere stato del traffico (https://bitbucket.org/agenziamobilita/muoversi-a-roma/wiki/tempi.TempiTratta)
+Long TODO:
+    * Database to store chat logs
+    * Analytics
+Very long todo:
+    * NLP interface
 """
 
 class CallbackType:
@@ -386,13 +389,13 @@ def help_ch(bot, update):
     bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
     update.message.reply_text('''
         TrasportiRomaBot ti darà informazioni sugli autobus a Roma!
-         I comandi supportati sono:
-         /start per iniziare il bot
-         /fermata quali autobus sono in arrivo
-         /autobus orari e informazioni su una linea
-         Tutte le info su cui mi baso sono di Atac, per questo motivo è colpa loro se sono imprecise.
-         Per info: http://bots.informaticalab.com
-         Per feedback: @FedericoPonzi
+I comandi supportati sono:
+/start per iniziare il bot
+/fermata quali autobus sono in arrivo
+/autobus orari e informazioni su una linea
+Tutte le info su cui mi baso sono di Atac, per questo motivo è colpa loro se sono imprecise.
+Per info: http://bots.informaticalab.com
+Per feedback: @FedericoPonzi
 ''')
 
 @run_async
