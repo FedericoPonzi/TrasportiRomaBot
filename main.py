@@ -7,12 +7,14 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Updater, InlineQueryHandler, CommandHandler, MessageHandler, Filters,\
  CallbackQueryHandler, ConversationHandler
 from telegram.ext.dispatcher import run_async
+from telegram.contrib.botan import Botan
 import logging
 from datetime import datetime
 from atacbot import AtacBot
 import dateutil.parser
 import locale
 from state import State
+
 
 locale.setlocale(locale.LC_ALL, 'it_IT.utf8')
 
@@ -25,14 +27,17 @@ logger = logging.getLogger(__name__)
 """
 Soft TODO:
     * Aggiungere orari autobus (https://bitbucket.org/agenziamobilita/muoversi-a-roma/wiki/paline.Percorso)
-    * Aggiungere possibilità di cercare percorso
+
     * Aggiungere possibilità di prendere posizione come palina
     * Aggiungere stato del traffico (https://bitbucket.org/agenziamobilita/muoversi-a-roma/wiki/tempi.TempiTratta)
 Long TODO:
     * Database to store chat logs
-    * Analytics
 Very long todo:
+    * Aggiungere possibilità di cercare percorso
     * NLP interface
+VERY VERY VERY Long todo:
+    * Groups support
+
 """
 
 class CallbackType:
@@ -45,6 +50,7 @@ class CallbackType:
 ## Statics (for now):
 atac = AtacBot(os.environ['ATAC_API_KEY'])
 states = State()
+botan = Botan("ac7e9ae9-6960-46bd-ae51-4ea659716a34")
 
 ######
 ###Commands :
@@ -107,6 +113,7 @@ def callback_query_handler(bot, update):
 
 @run_async
 def start_ch(bot, update):
+    botan.track(update.message)
     bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
     states.removeState(update.message.chat_id)
     logger.info("Called /start command")
@@ -114,6 +121,7 @@ def start_ch(bot, update):
 
 @run_async
 def fermata_ch(bot, update, args):
+    botan.track(update.message)
     bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
     states.removeState(update.message.chat_id)
     logger.info("Called /fermata command")
@@ -135,6 +143,7 @@ def fermata_ch(bot, update, args):
 
 @run_async
 def autobus_ch(bot, update, args):
+    botan.track(update.message)
     states.removeState(update.message.chat_id)
     logger.info("Called /autobus command")
     bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
@@ -158,6 +167,7 @@ def autobus_ch(bot, update, args):
 
 @run_async
 def help_ch(bot, update):
+    botan.track(update.message)
     states.removeState(update.message.chat_id)
     logger.info("Called /help command")
     bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
