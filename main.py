@@ -2,8 +2,8 @@ import os
 from uuid import uuid4
 import re
 from telegram import InlineQueryResultArticle, ParseMode, \
-    InputTextMessageContent, ChatAction, ReplyKeyboardMarkup
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+    InputTextMessageContent, ChatAction, ReplyKeyboardMarkup, ReplyKeyboardRemove
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton
 from telegram.ext import Updater, InlineQueryHandler, CommandHandler, MessageHandler, Filters,\
  CallbackQueryHandler, ConversationHandler
 from telegram.ext.dispatcher import run_async
@@ -24,22 +24,6 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 
 logger = logging.getLogger(__name__)
 
-"""
-Soft TODO:
-    * Aggiungere orari autobus (https://bitbucket.org/agenziamobilita/muoversi-a-roma/wiki/paline.Percorso)
-
-    * Aggiungere possibilità di prendere posizione come palina
-    * Aggiungere stato del traffico (https://bitbucket.org/agenziamobilita/muoversi-a-roma/wiki/tempi.TempiTratta)
-Long TODO:
-    * Database to store chat logs
-Very long todo:
-    * Aggiungere possibilità di cercare percorso
-    * NLP interface
-VERY VERY VERY Long todo:
-    * Groups support
-
-"""
-
 class CallbackType:
     """Used for callbacks. Format type-value"""
     update_fermata = "0"
@@ -47,7 +31,7 @@ class CallbackType:
     orari_autobus = "2"
 
 
-## Statics (for now):
+## Statics:
 atac = AtacBot(os.environ['ATAC_API_KEY'])
 states = State()
 botan = Botan("ac7e9ae9-6960-46bd-ae51-4ea659716a34")
@@ -59,12 +43,25 @@ botan = Botan("ac7e9ae9-6960-46bd-ae51-4ea659716a34")
 def echo(bot, update):
      user_state = states.getState(update.message.chat_id)
      if user_state == State.FERMATA:
-         fermata_ch(bot, update, [update.message.text])
-         states.removeState(update.message.chat_id)
+         #message location
+         if update.message.location:
+             req = atac.search_palina_from_location(update.message.location)
+             reply_markup = ReplyKeyboardRemove()
+             update.message.reply_text("Ottimo, posizione ricevuta!", reply_markup=ReplyKeyboardRemove())
+             if req.isSuccess:
+                 
+                 keyboard = [[InlineKeyboardButton(f['nome'] + " (" + f['distanza_arrotondata'] + ")" , callback_data=CallbackType.update_fermata + "-" + f['id_palina'])] for f in req.data]
+                 reply_markup = InlineKeyboardMarkup(keyboard)
+             update.message.reply_text(req.message, reply_markup=reply_markup)
+         else:
+             fermata_ch(bot, update, [update.message.text])
+             states.removeState(update.message.chat_id)
      elif user_state == State.LINEA:
          autobus_ch(bot, update, [update.message.text])
          states.removeState(update.message.chat_id)
      else:
+         if update.message.text == None or update.message.text == "":
+             update.message.text = "ok"
          bot.sendMessage(chat_id=update.message.chat_id, text=update.message.text)
 
 
@@ -82,8 +79,7 @@ def callback_query_handler(bot, update):
         reply_markup = InlineKeyboardMarkup(keyboard)
         req = atac.get_autobus_from_fermata(val)
         if req.isSuccess:
-            m = "\nAggiornate alle " + str(datetime.now().strftime("%X"))
-            bot.editMessageText(text=req.message + m,
+            bot.editMessageText(text=req.message,
                                 chat_id=c_id,
                                 message_id=query.message.message_id,
                                 reply_markup=reply_markup)
@@ -128,7 +124,11 @@ def fermata_ch(bot, update, args):
     if len(args) > 0:
         id_palina = int(args[0])
     else:
-        update.message.reply_text("Qual'è il numero della fermata in cui ti trovi?")
+        location_keyboard = KeyboardButton(text="Invia Posizione", request_location=True)
+        reply_markup = ReplyKeyboardMarkup( [[ location_keyboard ]])
+        bot.sendMessage(chat_id=update.message.chat_id,
+                  text="Qual'è il numero della fermata in cui ti trovi? In alternativa mandami la tua posizione.",
+                  reply_markup=reply_markup)
         states.setState(update.message.chat_id, State.FERMATA)
         return
     #update.message.reply_text('Inserisci la tua fermata')
@@ -159,11 +159,10 @@ def autobus_ch(bot, update, args):
         keyboard = [[InlineKeyboardButton(direzione['capolinea'] , callback_data=CallbackType.update_percorso + "-" + direzione['id_percorso'])] for direzione in req.data]
         reply_markup = InlineKeyboardMarkup(keyboard)
         update.message.reply_text(req.message, reply_markup=reply_markup)
-    else: #Errore case, hide the reply markup
+    else: #Errore case, hide the reply markup and retry
         states.setState(update.message.chat_id, State.LINEA)
         update.message.reply_text(req.message)
         update.message.reply_text(infoText)
-    #update.message.reply_text("Work in progress. In futuro ti darò informazioni sulle posizioni degli autobus.")
 
 @run_async
 def help_ch(bot, update):
@@ -193,12 +192,12 @@ def main():
     dp = updater.dispatcher
 
     handlers = [
-        MessageHandler(Filters.text, echo),
         CallbackQueryHandler(callback_query_handler),
         CommandHandler("start", start_ch),
         CommandHandler("help", help_ch),
         CommandHandler("fermata", fermata_ch, pass_args=True),
-        CommandHandler("autobus", autobus_ch, pass_args=True)
+        CommandHandler("autobus", autobus_ch, pass_args=True),
+        MessageHandler(Filters.all, echo)
     ]
     for i in handlers:
         dp.add_handler(i)

@@ -1,4 +1,3 @@
-
 class State:
     """Used to keep state of the conversation."""
     FERMATA = 0

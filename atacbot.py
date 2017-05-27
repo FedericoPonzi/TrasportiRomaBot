@@ -41,9 +41,28 @@ class AtacBot(object):
         logger.info("Logging on atac's api")
         self.token = self.auth_server.autenticazione.Accedi(self.atac_api_key, "")
 
+    def search_palina_from_location(self, location = {'latitude': "41.90", 'longitude': "12.47"}):
+        try:
+            res = self.paline_server.paline.SmartSearch(self.token,"punto:("+ str(location['latitude']) +" , " + str(location['longitude']) +")")
+        except Fault as e:
+            if e.faultCode == self.server_resp_codes['expired_session']:
+                self.__updateToken()
+                return self.search_palina_from_location(location)
+            else:
+                logger.error("search_palina_from_location:", e)
+                return self.generic_error()
+        res = res['risposta']
+
+        if res['errore']:
+            m = "Mi dispiace, non ho trovato fermate vicino a te. Ma 'do stai?! :flushed:"
+        else: #TODO Controllare se è una sola.
+            m = "Ho trovato queste fermate vicino a te :smirk:"
+        paline_extra = sorted(res['paline_extra'], key=lambda k: k.get("distanza", None))
+        return BotResponse(True, m, paline_extra)
+
+
     def get_orari_bus(self, id_percorso):
         logger.info("get_orari_bus called")
-
         try:
             res = self.paline_server.paline.Percorso(self.token, str(id_percorso), "" ,datetime.now().strftime("%Y-%m-%d"), "it")
         except Fault as e:
@@ -184,7 +203,7 @@ class AtacBot(object):
                 logger.error("Errore get_autobus_from_fermata richiesta palina ", id_palina, ", errore:", e)
                 m = self.generic_error
             return m
-        m = res['risposta']['collocazione'] + "\n"
+        m = res['risposta']['collocazione'].lower() + "\n"
         inArrivo = res['risposta']['arrivi']
         if len(inArrivo) > 0:
             for i in inArrivo:
@@ -194,6 +213,7 @@ class AtacBot(object):
                 m += "\n"
         else:
             return BotResponse(False, m + "Non ci sono informazioni su autobus in arrivo :persevere:")
+        m += "\nAggiornate alle " + str(datetime.now().strftime("%X"))
         return BotResponse(True, m)
 
     ###Unused:
