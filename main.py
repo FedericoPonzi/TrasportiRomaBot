@@ -49,7 +49,6 @@ def echo(bot, update):
              reply_markup = ReplyKeyboardRemove()
              update.message.reply_text("Ottimo, posizione ricevuta!", reply_markup=ReplyKeyboardRemove())
              if req.isSuccess:
-                 
                  keyboard = [[InlineKeyboardButton(f['nome'] + " (" + f['distanza_arrotondata'] + ")" , callback_data=CallbackType.update_fermata + "-" + f['id_palina'])] for f in req.data]
                  reply_markup = InlineKeyboardMarkup(keyboard)
              update.message.reply_text(req.message, reply_markup=reply_markup)
