@@ -44,25 +44,25 @@ def echo(bot, update):
      user_state = states.getState(update.message.chat_id)
      if user_state == State.FERMATA:
          #message location
+         reply_markup = ReplyKeyboardRemove()
+         update.message.reply_text("Perfetto!", reply_markup=ReplyKeyboardRemove())
+
          if update.message.location:
              req = atac.search_palina_from_location(update.message.location)
-             reply_markup = ReplyKeyboardRemove()
-             update.message.reply_text("Ottimo, posizione ricevuta!", reply_markup=ReplyKeyboardRemove())
              if req.isSuccess:
                  keyboard = [[InlineKeyboardButton(f['nome'] + " (" + f['distanza_arrotondata'] + ")" , callback_data=CallbackType.update_fermata + "-" + f['id_palina'])] for f in req.data]
                  reply_markup = InlineKeyboardMarkup(keyboard)
              update.message.reply_text(req.message, reply_markup=reply_markup)
-         else:
+         else: #id palina
              fermata_ch(bot, update, [update.message.text])
-             states.removeState(update.message.chat_id)
      elif user_state == State.LINEA:
          autobus_ch(bot, update, [update.message.text])
-         states.removeState(update.message.chat_id)
      else:
          if update.message.text == None or update.message.text == "":
              update.message.text = "ok"
          bot.sendMessage(chat_id=update.message.chat_id, text=update.message.text)
-
+     #Eventually remove the state
+     states.removeState(update.message.chat_id)
 
 @run_async
 def callback_query_handler(bot, update):
@@ -121,7 +121,7 @@ def fermata_ch(bot, update, args):
     states.removeState(update.message.chat_id)
     logger.info("Called /fermata command")
     if len(args) > 0:
-        id_palina = int(args[0])
+        id_palina = args[0]
     else:
         location_keyboard = KeyboardButton(text="Invia Posizione", request_location=True)
         reply_markup = ReplyKeyboardMarkup( [[ location_keyboard ]])
