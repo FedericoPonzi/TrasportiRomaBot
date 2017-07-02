@@ -30,8 +30,7 @@ class CallbackType:
     update_percorso = "1"
     orari_autobus = "2"
 
-
-## Statics:
+## Static:
 atac = AtacBot(os.environ['ATAC_API_KEY'])
 states = State()
 botan = Botan("ac7e9ae9-6960-46bd-ae51-4ea659716a34")

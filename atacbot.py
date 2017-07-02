@@ -12,6 +12,10 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 class BotResponse(object):
+    """ This is a response for every request to the AtacBot class
+        If isSuccess is false, message it's an error.
+        Self.data are additional data, and is None most of the times. It's used to build telegram's menus.
+    """
     def __init__(self, isSuccess, message, data=None):
         self.isSuccess = isSuccess
         self.message= emojize(message, use_aliases = True)
@@ -19,19 +23,17 @@ class BotResponse(object):
 
 
 class AtacBot(object):
-    """Format of returns:
-    tuples of the format
-    <bool req_result, str message, additional_data>
-    Where req_result is the result of the request (true = fine, false= error)
-    message = message to reply
-    additional_data = dictionary, list with more info in case of req_result == true
+    """ This is the heart (ok, brain it's better) of the bot.
+        It knows how to talk to the atac's server, and how to construct the textual responses.
     """
     def __init__(self, atac_api_key):
         self.atac_api_key = atac_api_key
         atac_api = "http://muovi.roma.it/ws/xml/"
-        self.auth_server = Server(urljoin(atac_api, "autenticazione/" + "1"))
-        self.paline_server = Server(urljoin(atac_api, "paline/" + "7"))
-        self.percorso_server = Server(urljoin(atac_api, "percorso/" + "2"))
+        self.servers = {
+            "auth" : Server(urljoin(atac_api, "autenticazione/" + "1")),
+            "paline" : Server(urljoin(atac_api, "paline/" + "7")),
+            "percorso" : Server(urljoin(atac_api, "percorso/" + "2"))
+        }
         self.server_resp_codes = {"expired_session" : 824, "unknown_percorso" : 807,
         "unknown_palina": 803, "linea_inesistente" : 804}
         self.__updateToken()
@@ -39,11 +41,11 @@ class AtacBot(object):
 
     def __updateToken(self):
         logger.info("Logging on atac's api")
-        self.token = self.auth_server.autenticazione.Accedi(self.atac_api_key, "")
+        self.token = self.servers['auth'].autenticazione.Accedi(self.atac_api_key, "")
 
     def search_palina_from_location(self, location = {'latitude': "41.90", 'longitude': "12.47"}):
         try:
-            res = self.paline_server.paline.SmartSearch(self.token,"punto:("+ str(location['latitude']) +" , " + str(location['longitude']) +")")
+            res = self.servers['paline'].paline.SmartSearch(self.token,"punto:("+ str(location['latitude']) +" , " + str(location['longitude']) +")")
         except Fault as e:
             if e.faultCode == self.server_resp_codes['expired_session']:
                 self.__updateToken()
@@ -64,7 +66,7 @@ class AtacBot(object):
     def get_orari_bus(self, id_percorso):
         logger.info("get_orari_bus called")
         try:
-            res = self.paline_server.paline.Percorso(self.token, str(id_percorso), "" ,datetime.now().strftime("%Y-%m-%d"), "it")
+            res = self.servers['paline'].paline.Percorso(self.token, str(id_percorso), "" ,datetime.now().strftime("%Y-%m-%d"), "it")
         except Fault as e:
             if e.faultCode == self.server_resp_codes['expired_session']:
                 self.__updateToken()
@@ -95,25 +97,26 @@ class AtacBot(object):
     def get_prossima_partenza(self, id_percorso):
         """ Next trip from the headline.
         """
-        #atac.paline_server.paline.ProssimaPartenza(atac.token, "1978", "it")
+        #atac.servers['paline'].paline.ProssimaPartenza(atac.token, "1978", "it")
         #{'id_richiesta': 'd90771ab7defe73b6cf5620a428d3cbb', 'risposta': '2017-05-07 13:05:00'}
         logger.info("get_prossima_partenza called")
         try:
-            res = self.paline_server.paline.ProssimaPartenza(self.token, id_percorso, "it")
+            res = self.servers['paline'].paline.ProssimaPartenza(self.token, id_percorso, "it")
             data = dateutil.parser.parse(res['risposta'])
             #now = datetime.now()
-            frmtstr = "%-H:%M" #TODO
+            frmtstr = "%-H:%M"
 
             m = "La prossima partenza dal capolinea è alle "+ str(data.strftime(frmtstr)) + " :blush:"
             diff_delta = data - datetime.now()
+            diff_minutes = int(diff_delta.seconds / 60)
+            hours = int(diff_minutes/60)
+            minutes = diff_minutes % 60
+
             m += ", ovvero fra "
             if (diff_delta.days == 1):
                 m+= "un giorno e "
             if (diff_delta.days > 1):
                 m+= str(diff_delta.days) + " giorni e "
-            diff_minutes = int(diff_delta.seconds / 60)
-            hours = int(diff_minutes/60)
-            minutes = diff_minutes % 60
             if hours == 1:
                 m+= "un'ora "
             if hours > 1:
@@ -140,7 +143,7 @@ class AtacBot(object):
             refers to a bus + it's direction( es: bus 218 direction Porta S.Giovanni has id 1978 )
         """
         try:
-            res = self.paline_server.paline.Percorso(self.token, str(id_percorso), "" ,"", "it")
+            res = self.servers['paline'].paline.Percorso(self.token, str(id_percorso), "" ,"", "it")
         except Fault as e:
             if e.faultCode == self.server_resp_codes['expired_session']:
                 self.__updateToken()
@@ -172,7 +175,7 @@ class AtacBot(object):
             Returns question about the direction of the bus.
         """
         try:
-            res = self.paline_server.paline.Percorsi(self.token, str(autobus), "it")
+            res = self.servers['paline'].paline.Percorsi(self.token, str(autobus), "it")
         except Fault as e:
             if e.faultCode == self.server_resp_codes['expired_session']:
                 self.__updateToken()
@@ -192,7 +195,7 @@ class AtacBot(object):
         """ Gets a list of busses and their distance in time/space from the stop.
         """
         try:
-            res = self.paline_server.paline.Previsioni(self.token, str(id_palina), 'it')
+            res = self.servers['paline'].paline.Previsioni(self.token, str(id_palina), 'it')
         except Fault as e:
             if e.faultCode == self.server_resp_codes['unknown_palina']:
                 m = BotResponse(False, "Fermata Palina inesistente :persevere: Riprova a scrivermi la palina!")
