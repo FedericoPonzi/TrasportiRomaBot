@@ -227,7 +227,7 @@ class AtacBot(object):
             "quando" : 0
         }
         try:
-            res = self.percorso_server.percorso.Cerca(
+            res = self.servers['percorso'].percorso.Cerca(
                 self.token, fr, to, opt,
                 datetime.now().strftime("%Y-%m-%d %X"), "it")
             m = BotResponse(True, res)
