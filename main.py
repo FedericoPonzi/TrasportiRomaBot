@@ -174,8 +174,8 @@ I comandi supportati sono:
 /start per iniziare il bot
 /fermata quali autobus sono in arrivo
 /autobus orari e informazioni su una linea
-Tutte le info su cui mi baso sono di Atac, per questo motivo è colpa loro se sono imprecise.
-Per info: https://bots.informaticalab.com
+Le informazioni sono fornite da Atac, perciò è colpa loro se sono imprecise.
+Per info: https://fponzi.me
 Per feedback: @FedericoPonzi
 ''')
 
