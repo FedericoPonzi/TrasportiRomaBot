@@ -168,16 +168,14 @@ def help_ch(bot, update):
     states.removeState(update.message.chat_id)
     logger.info("Called /help command")
     bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
-    update.message.reply_text('''
-        TrasportiRomaBot ti darà informazioni sugli autobus a Roma!
-I comandi supportati sono:
+    update.message.reply_text('''Ti darò informazioni sugli autobus a Roma!
+I comandi che supporto sono:
 /start per iniziare il bot
 /fermata quali autobus sono in arrivo
 /autobus orari e informazioni su una linea
 Le informazioni sono fornite da Atac, perciò è colpa loro se sono imprecise.
-Per info: https://fponzi.me
-Per feedback: @FedericoPonzi
-''')
+Per feedback su errori o richieste: @FedericoPonzi
+Ti piacciono i bot? Il mio codice lo trovi qua: https://github.com/FedericoPonzi/TrasportiRomaBot''')
 
 @run_async
 def error(bot, update, error):
