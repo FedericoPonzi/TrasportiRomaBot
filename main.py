@@ -7,7 +7,6 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton
 from telegram.ext import Updater, InlineQueryHandler, CommandHandler, MessageHandler, Filters,\
  CallbackQueryHandler, ConversationHandler
 from telegram.ext.dispatcher import run_async
-from telegram.contrib.botan import Botan
 import logging
 from datetime import datetime
 from atacbot import AtacBot
@@ -33,7 +32,6 @@ class CallbackType:
 ## Static:
 atac = AtacBot(os.environ['ATAC_API_KEY'])
 states = State()
-botan = Botan("ac7e9ae9-6960-46bd-ae51-4ea659716a34")
 
 ######
 ###Commands :
@@ -107,7 +105,7 @@ def callback_query_handler(bot, update):
 
 @run_async
 def start_ch(bot, update):
-    botan.track(update.message)
+    
     bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
     states.removeState(update.message.chat_id)
     logger.info("Called /start command")
@@ -115,7 +113,7 @@ def start_ch(bot, update):
 
 @run_async
 def fermata_ch(bot, update, args):
-    botan.track(update.message)
+    
     bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
     states.removeState(update.message.chat_id)
     logger.info("Called /fermata command")
@@ -141,7 +139,7 @@ def fermata_ch(bot, update, args):
 
 @run_async
 def autobus_ch(bot, update, args):
-    botan.track(update.message)
+    
     states.removeState(update.message.chat_id)
     logger.info("Called /autobus command")
     bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
@@ -164,7 +162,7 @@ def autobus_ch(bot, update, args):
 
 @run_async
 def help_ch(bot, update):
-    botan.track(update.message)
+    
     states.removeState(update.message.chat_id)
     logger.info("Called /help command")
     bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
