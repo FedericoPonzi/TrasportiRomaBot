@@ -103,11 +103,14 @@ class AtacBot(object):
         try:
             res = self.servers['paline'].paline.ProssimaPartenza(self.token, id_percorso, "it")
             data = dateutil.parser.parse(res['risposta'])
-            #now = datetime.now()
             frmtstr = "%-H:%M"
 
-            m = "La prossima partenza dal capolinea è alle "+ str(data.strftime(frmtstr)) + " :blush:"
             diff_delta = data - datetime.now()
+            if(diff_delta.days < 0):
+                return BotResponse(True, "L'autobus dovrebbe essere lì a momenti! :smile:")
+
+            m = "La prossima partenza dal capolinea è alle "+ str(data.strftime(frmtstr)) + " :blush:"
+            
             diff_minutes = int(diff_delta.seconds / 60)
             hours = int(diff_minutes/60)
             minutes = diff_minutes % 60
