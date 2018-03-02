@@ -123,7 +123,7 @@ def fermata_ch(bot, update, args):
         location_keyboard = KeyboardButton(text="Invia Posizione", request_location=True)
         reply_markup = ReplyKeyboardMarkup( [[ location_keyboard ]])
         bot.sendMessage(chat_id=update.message.chat_id,
-                  text="Qual'è il numero della fermata in cui ti trovi? In alternativa mandami la tua posizione.",
+                  text="Qual è il numero della fermata in cui ti trovi? In alternativa, mandami la tua posizione.",
                   reply_markup=reply_markup)
         states.setState(update.message.chat_id, State.FERMATA)
         return
