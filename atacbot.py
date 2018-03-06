@@ -83,11 +83,11 @@ class AtacBot(object):
             orario = ""
             for ind, i in enumerate(lista_orari):
                 if len(i['minuti']) > 0:
+                    # Get the right emoji:
                     orario += ":clock"+ str(((int(i['ora'])-1)%12+1)) +": "
-
                     for minuti in i['minuti']:
                         orario += i['ora'] + ":" + minuti
-                        if ind < len(lista_orari) - 1:
+                        if ind < len(lista_orari):
                             orario += ", "
                     orario +="\n"
             m = "Queste sono le partenze da ''" + capolinea +"' per oggi "+ datetime.today().strftime("%A, %d %B") +":\n"
