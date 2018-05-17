@@ -1,0 +1,14 @@
+# Systemd service file used by trasportiromabot.
+[Unit]
+Description=TrasportiRomaBot service
+
+[Service]
+WorkingDirectory=/home/bots/TrasportiRomaBot/
+ExecStart=/home/bots/TrasportiRomaBot/venv/bin/python3 -m bot.main
+User=bots
+Type=simple
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=basic.target
