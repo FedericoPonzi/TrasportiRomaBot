@@ -1,16 +1,12 @@
 import os
-from uuid import uuid4
-import re
-from telegram import InlineQueryResultArticle, ParseMode, \
-    InputTextMessageContent, ChatAction, ReplyKeyboardMarkup, ReplyKeyboardRemove
+from telegram import ChatAction, ReplyKeyboardMarkup, ReplyKeyboardRemove
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, KeyboardButton
-from telegram.ext import Updater, InlineQueryHandler, CommandHandler, MessageHandler, Filters,\
- CallbackQueryHandler, ConversationHandler
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters,\
+ CallbackQueryHandler
 from telegram.ext.dispatcher import run_async
 import logging
 from datetime import datetime
-from atacbot import AtacBot
-import dateutil.parser
+from bot.atacbot import AtacBot
 import locale
 from state import State
 
