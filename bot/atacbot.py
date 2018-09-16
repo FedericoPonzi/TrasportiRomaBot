@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class BotResponse(object):
     """ This is a response for every request to the AtacBot class
         If isSuccess is false, message it's an error.
-        Self.data are additional data, and is None most of the times. It's used to build telegram's menus.
+        Self.data contains additional data, and its None most of the times. It's used to build telegram's menus.
     """
 
     def __init__(self, is_success, message, data=None):

@@ -54,10 +54,10 @@ def echo(bot, update):
             fermata_ch(bot, update, [update.message.text])
     elif user_state == State.LINEA:
         autobus_ch(bot, update, [update.message.text])
-    else:
+    else: # Default: echo message back to the user.
         if update.message.text is None or update.message.text == "":
             update.message.text = "ok"
-        bot.sendMessage(chat_id=update.message.chat_id, text=update.message.text)
+        bot.sendMessage(chat_id=update.message.chat_id, text="Inviami /start per iniziare!")
     # Eventually remove the state
     states.removeState(update.message.chat_id)
 
