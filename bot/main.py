@@ -64,7 +64,7 @@ def echo(bot, update):
 
 @run_async
 def callback_query_handler(bot, update):
-    logger.info("Called callback_query_handler")
+    logger.info("Called callback_query_handler, username:" + str(update.message.chat.username))
     query = update.callback_query
 
     c_id = query.message.chat_id
@@ -109,7 +109,7 @@ def callback_query_handler(bot, update):
 def start_ch(bot, update):
     bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
     states.removeState(update.message.chat_id)
-    logger.info("Called /start command")
+    logger.info("Called /start command, username:" + str(update.message.chat.username))
     update.message.reply_text(
         "Ciao! Posso dirti la posizione degli autobus in arrivo e molto altro.\nUsa /help per una lista di comandi!")
 
@@ -169,7 +169,7 @@ def autobus_ch(bot, update, args):
 @run_async
 def help_ch(bot, update):
     states.removeState(update.message.chat_id)
-    logger.info("Called /help command")
+    logger.info("Called /help command, username:" + str(update.message.chat.username))
     bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
     update.message.reply_text('''Ti darò informazioni sugli autobus a Roma!
 I comandi che supporto sono:
