@@ -64,7 +64,7 @@ def echo(bot, update):
 
 @run_async
 def callback_query_handler(bot, update):
-    logger.info("Called callback_query_handler, username:" + str(update.message.chat.username))
+    logger.info("Called callback_query_handler, username:" + str(update.callback_query.message.chat.username))
     query = update.callback_query
 
     c_id = query.message.chat_id
@@ -118,7 +118,7 @@ def start_ch(bot, update):
 def fermata_ch(bot, update, args):
     bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
     states.removeState(update.message.chat_id)
-    logger.info("Called /fermata command")
+    logger.info("Called /fermata command, username:" + str(update.message.chat.username))
     if len(args) > 0:
         id_palina = args[0]
     else:
@@ -144,7 +144,7 @@ def fermata_ch(bot, update, args):
 @run_async
 def autobus_ch(bot, update, args):
     states.removeState(update.message.chat_id)
-    logger.info("Called /autobus command")
+    logger.info("Called /autobus command, username:" + str(update.message.chat.username))
     bot.sendChatAction(chat_id=update.message.chat_id, action=ChatAction.TYPING)
     info_text = "Di quale linea vorresti informazioni?"
     if len(args) > 0:
