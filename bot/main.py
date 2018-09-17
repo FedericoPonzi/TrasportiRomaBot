@@ -183,7 +183,8 @@ Ti piacciono i bot? Il mio codice lo trovi qua: https://github.com/FedericoPonzi
 
 @run_async
 def error(bot, update, er):
-    logger.warning('Update "%s" caused error "%s"' % (update, er))
+    if update is not None:
+        logger.warning('Update "%s" caused error "%s"' % (update, er))
     # TODO: Handle this.
 
 
